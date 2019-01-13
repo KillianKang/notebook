@@ -155,3 +155,44 @@ ADD ubuntu-xenial-core-cloudimg-amd64-root.tar.gz /
 
 ### CMD 容器启动命令
 
+容器是进程，因此在启动容器的时候，需要指定所运行的程序及参数。`CMD` 指令就是用来指定容器主进程的默认启动命令。在使用 `docker run` 启动容器时，可以指定新的命令替换默认启动命令。
+
+- **shell** 格式：`CMD <命令>`
+- **exec** 格式：`CMD ["可执行文件", "参数1", "参数2"...]`
+- **参数列表** 格式：`CMD ["参数1", "参数2"...]`。在指定了 `ENTRYPOINT` 指令后，用 `CMD` 指定具体的参数。
+
+推荐使用 `exec` 指令格式，这类格式在解析时会被解析为 JSON 数组，因此一定要使用双引号 `"`。
+
+如果使用 `shell` 格式的话，实际的命令会被包装为 `sh -c` 的参数的形式进行执行。比如：
+
+```Dockerfile
+CMD echo $HOME
+```
+
+在实际执行中，会将其变更为：
+
+```Dockerfile
+CMD [ "sh", "-c", "echo $HOME" ]
+```
+
+这就是为什么我们可以使用环境变量的原因，因为这些环境变量会被 shell 进行解析处理。
+
+Docker 不是虚拟机，容器中的应用都是以前台的形式执行，容器中没有后台服务的概念，如果容器主进程退出，容器便会退出。
+
+因此不能通过如下形式来进行后台程序启动：
+
+```Dockerfile
+CMD service nginx start
+```
+
+`CMD service nginx start` 会被理解为 `CMD [ "sh", "-c", "service nginx start"]`，因此主进程实际上是 `sh`。那么当 `service nginx start` 命令结束后，`sh` 也就结束了，`sh` 作为主进程退出，自然就会令容器退出。
+
+正确的做法是直接执行 `nginx` 可执行文件，并且要求以前台形式运行。比如：
+
+```Dockerfile
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### ENTRYPOINT 入口点
+
+使用 `ENTRYPOINT` 命令指定容器主进程的默认启动命令后，在启动容器时可以带参数。
