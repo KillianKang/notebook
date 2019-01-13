@@ -195,4 +195,70 @@ CMD ["nginx", "-g", "daemon off;"]
 
 ### ENTRYPOINT 入口点
 
-使用 `ENTRYPOINT` 命令指定容器主进程的默认启动命令后，在启动容器时可以带参数。
+使用 `ENTRYPOINT` 指令指定容器主进程的默认启动命令后，在启动容器时可以带参数。
+
+在使用 `docker run` 命令启动容器时，可以使用参数 `--entrypoint` 来指定新的启动命令。 `docker run` 最后面指定的命令将作为参数传给 `ENTRYPOINT` 指令。
+
+当指定了 `ENTRYPOINT` 后，`CMD` 指令就只能是**参数列表**格式， `CMD` 的内容将作为参数传给 `ENTRYPOINT` 指令。
+
+`ENTRYPOINT` 指令可让镜像变成可带参数的命令使用：
+
+```Dockerfile
+FROM ubuntu:18.04
+RUN apt-get update \
+    && apt-get install -y curl \
+    && rm -rf /var/lib/apt/lists/*
+ENTRYPOINT [ "curl", "-s", "https://ip.cn" ]
+```
+
+```bash
+$ docker run myip
+当前 IP：61.148.226.66 来自：北京市 联通
+
+$ docker run myip -i
+HTTP/1.1 200 OK
+Server: nginx/1.8.0
+Date: Tue, 22 Nov 2016 05:12:40 GMT
+Content-Type: text/html; charset=UTF-8
+Vary: Accept-Encoding
+X-Powered-By: PHP/5.6.24-1~dotdeb+7.1
+X-Cache: MISS from cache-2
+X-Cache-Lookup: MISS from cache-2:80
+X-Cache: MISS from proxy-2_6
+Transfer-Encoding: chunked
+Via: 1.1 cache-2:80, 1.1 proxy-2_6:8006
+Connection: keep-alive
+
+当前 IP：61.148.226.66 来自：北京市 联通
+```
+
+跟在最后面的 `-i` 不再是命令，而是作为参数传给 `ENTRYPOINT` 指令。
+
+作为附带脚本的入口点：
+
+```Dockerfile
+FROM alpine:3.4
+...
+RUN addgroup -S redis && adduser -S -G redis redis
+...
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+EXPOSE 6379
+CMD [ "redis-server" ]
+```
+
+其中先是创建了 redis 用户，然后指定了 `ENTRYPOINT` 为 `docker-entrypoint.sh` 脚本。
+
+```bash
+#!/bin/sh
+...
+# allow the container to be started with `--user`
+if [ "$1" = 'redis-server' -a "$(id -u)" = '0' ]; then
+    chown -R redis .
+    exec su-exec redis "$0" "$@"
+fi
+
+exec "$@"
+```
+
+该脚本根据 `CMD` 的内容来进行对应的操作，如果是 `redis-server` 的话，则切换到 `redis` 用户身份启动服务器，否则依旧使用 `root` 身份执行。
