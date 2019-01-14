@@ -288,5 +288,112 @@ ENV VERSION=1.0 DEBUG=on \
 - `VOLUME ["<路径1>", "<路径2>"...]`
 - `VOLUME <路径>`
 
-容器运行时应该尽量保持容器存储层不发生写操作，对于数据库类需要保存动态数据的应用，其数据库文件应该通过 `docker run` 命令中 `-v` guan保存于卷(volume)中
+容器运行时应该尽量保持容器存储层不发生写操作，对于数据库类需要保存动态数据的应用，其数据库文件应该通过 `docker run` 命令中 `-v` 参数将本地目录挂载为镜像的数据卷(volume)来保存动态数据。
 
+为了防止运行时用户忘记将动态文件所保存目录挂载为卷，在 `Dockerfile` 中，可以事先指定某些目录挂载为匿名卷，这样在运行时如果用户忘记挂载，应用也可以正常运行，并且不会向容器存储层写入大量数据。
+
+```Dockerfile
+VOLUME /data
+```
+
+容器中的 `/data` 目录在容器运行时自动挂载为匿名卷，任何向 `/data` 中写入的数据都不会记录进容器存储层，从而保证了容器存储层的无状态化。通过 `docker volume ls` 命令可以查看到匿名卷。
+
+### EXPOSE 声明端口
+
+* `EXPOSE <端口1> [<端口2>...]`
+
+`EXPOSE` 指令用来声明运行时容器提供的服务端口，这只是一个声明，在运行时并不会因为这个声明而开启端口，也不会进行端口映射。但是通过 `docker run` 命令中 `-P` 参数可以随机映射宿主端口到 `EXPOSE` 的端口。使用 `-p <宿主端口>:<容器端口>` 可以自定义宿主到容器的端口映射。
+
+### WORKDIR 指定工作目录
+
+* `WORKDIR <工作目录路径>`
+
+`WORKDIR` 指令用来指定容器启动时的默认工作目录，如果目录不存在会自动创建。
+
+### USER 指定当前用户
+
+* `USER <用户名>[:<用户组>]`
+
+`USER` 指令用来指定容器启动时的默认登陆用户，因此指定后后续命令都会使用这个用户执行。`USER` 只进行用户的切换，这个用户必须事先建立好，否则无法切换。
+
+```Dockerfile
+RUN groupadd -r redis && useradd -r -g redis redis
+USER redis
+RUN [ "redis-server" ]
+```
+
+### HEALTHCHECK 健康检查
+
+- `HEALTHCHECK [选项] CMD <命令>`：设置检查容器健康状况的命令
+- `HEALTHCHECK NONE`：如果基础镜像有健康检查指令，可使用该指令屏蔽
+
+在没有 `HEALTHCHECK` 指令前，Docker 引擎只能通过容器内主进程是否退出来判断容器是否状态异常。当容器主进程进入死锁状态，或者死循环状态，应用进程并不退出，但是该容器已经无法提供服务。
+
+当一个镜像指定了 `HEALTHCHECK` 指令后，启动容器时，初始状态为 `starting`，在 `HEALTHCHECK` 指令检查成功后变为 `healthy`，如果连续一定次数失败，则会变为 `unhealthy`。
+
+`HEALTHCHECK` 支持下列选项：
+
+- `--interval=<间隔>`：两次健康检查的间隔，默认为 30 秒；
+- `--timeout=<时长>`：健康检查命令运行超时时间，如果超过这个时间，本次健康检查就被视为失败，默认 30 秒；
+- `--retries=<次数>`：当连续失败指定次数后，则将容器状态视为 `unhealthy`，默认 3 次。
+
+和 `CMD`, `ENTRYPOINT` 一样，`HEALTHCHECK` 只可以出现一次，如果写了多个，只有最后一个生效。
+
+命令的返回值决定了该次健康检查是否成功：
+
+* `0`：成功
+* `1`：失败
+* `2`：保留（建议不要使用这个值）
+
+```Dockerfile
+FROM nginx
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+HEALTHCHECK --interval=5s --timeout=3s \
+  CMD curl -fs http://localhost/ || exit 1
+```
+
+示例中设置了每 5 秒检查一次，如果健康检查命令超过 3 秒没响应就视为失败，并且使用 `curl -fs http://localhost/ || exit 1` 作为健康检查命令。
+
+为了帮助排障，健康检查命令的输出（包括 `stdout` 以及 `stderr`）都会被存储于健康状态里，可以用 `docker inspect` 来查看。
+
+```bash
+$ docker build -t myweb:v1 .
+$ docker run -d --name web -p 80:80 myweb:v1
+$ docker inspect --format '{{json .State.Health}}' web | python -m json.tool
+{
+    "FailingStreak": 0,
+    "Log": [
+        {
+            "End": "2016-11-25T14:35:37.940957051Z",
+            "ExitCode": 0,
+            "Output": "<!DOCTYPE html>\n<html>\n<head>\n<title>Welcome to nginx!</title>\n<style>\n    body {\n        width: 35em;\n        margin: 0 auto;\n        font-family: Tahoma, Verdana, Arial, sans-serif;\n    }\n</style>\n</head>\n<body>\n<h1>Welcome to nginx!</h1>\n<p>If you see this page, the nginx web server is successfully installed and\nworking. Further configuration is required.</p>\n\n<p>For online documentation and support please refer to\n<a href=\"http://nginx.org/\">nginx.org</a>.<br/>\nCommercial support is available at\n<a href=\"http://nginx.com/\">nginx.com</a>.</p>\n\n<p><em>Thank you for using nginx.</em></p>\n</body>\n</html>\n",
+            "Start": "2016-11-25T14:35:37.780192565Z"
+        }
+    ],
+    "Status": "healthy"
+}
+```
+
+### ONBUILD 延后执行
+
+`ONBUILD` 是一个特殊的指令，它后面跟的是其它指令，比如 `RUN`, `COPY` 等，而这些指令，在当前镜像构建时并不会被执行。只有当以当前镜像为基础镜像，去构建下一级镜像的时候才会被执行。
+
+例如在制作使用 Node.js 所写的应用镜像时，由于 Node.js 使用 `npm` 进行包管理，所有依赖、配置、启动信息等都会放到 `package.json` 文件里。在拿到程序代码后，需要先进行 `npm install` 才能获得所需要的依赖。然后就可以通过 `npm start` 来启动应用。因此如果要制作多个不同的这类镜像就得写多个 `Dockerfile` 文件，这个就可以使用 `ONBUILD` 指令合并为一个  `Dockerfile` 文件。
+
+```Dockerfile
+FROM node:slim
+RUN mkdir /app
+WORKDIR /app
+ONBUILD COPY ./package.json /app
+ONBUILD RUN [ "npm", "install" ]
+ONBUILD COPY . /app/
+CMD [ "npm", "start" ]
+```
+
+这样各个 Node.js 项目的 `Dockerfile` 文件就变成了简单地：
+
+```Dockerfile
+FROM my-node
+```
+
+当在各个项目目录中，用这个只有一行的 `Dockerfile` 构建镜像时，之前基础镜像的那三行 `ONBUILD` 就会开始执行，成功的将当前项目的代码复制进镜像、并且针对本项目执行 `npm install`，生成应用镜像。
