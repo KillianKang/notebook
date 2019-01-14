@@ -262,3 +262,31 @@ exec "$@"
 ```
 
 该脚本根据 `CMD` 的内容来进行对应的操作，如果是 `redis-server` 的话，则切换到 `redis` 用户身份启动服务器，否则依旧使用 `root` 身份执行。
+
+### ENV 设置环境变量
+
+- `ENV <key> <value>`
+- `ENV <key1>=<value1> <key2>=<value2>...`
+
+```Dockerfie
+ENV VERSION=1.0 DEBUG=on \
+    NAME="Happy Feet"
+```
+
+设置容器中的环境变量，当变量值中含有空格时，需要使用双引号括起来。定义了环境变量后，后续的指令也可以使用这个环境变量，如以下指令：`RUN`、`ADD`、`COPY`、`ENV`、`EXPOSE`、`LABEL`、`USER`、`WORKDIR`、`VOLUME`、`STOPSIGNAL`、`ONBUILD`。
+
+### ARG 构建参数
+
+* `ARG <参数名>[=<默认值>]`
+
+`ARG` 指令用来定义参数名称和其默认值，该默认值可以在构建命令 `docker build` 中用 `--build-arg <参数名>=<值>` 来覆盖。该参数只可以在构建时（即 `Dockerfile` 文件）使用，容器中不会存在这些参数。但可以通过 `docker history` 看到这些值。
+
+在 1.13 之前的版本，要求 `--build-arg` 中的参数名，必须在 `Dockerfile` 中用 `ARG` 定义过了，换句话说，就是 `--build-arg` 指定的参数，必须在 `Dockerfile` 中使用了。如果对应参数没有被使用，则会报错退出构建。从 1.13 开始，这种严格的限制被放开，不再报错退出，而是显示警告信息，并继续构建。这对于使用 CI 系统，用同样的构建流程构建不同的 `Dockerfile` 的时候比较有帮助，避免构建命令必须根据每个 Dockerfile 的内容修改。
+
+### VOLUME 定义匿名卷
+
+- `VOLUME ["<路径1>", "<路径2>"...]`
+- `VOLUME <路径>`
+
+容器运行时应该尽量保持容器存储层不发生写操作，对于数据库类需要保存动态数据的应用，其数据库文件应该通过 `docker run` 命令中 `-v` guan保存于卷(volume)中
+
