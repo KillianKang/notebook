@@ -106,7 +106,7 @@ docker run hello-world
 ```json
 {
   "registry-mirrors": [
-    "https://registry.docker-cn.com"
+    "http://hub-mirror.c.163.com"
   ]
 }
 ```
@@ -123,7 +123,7 @@ sudo service docker restart
 
 ```bash
 Registry Mirrors:
- https://registry.docker-cn.com/
+ http://hub-mirror.c.163.com
 ```
 
 
