@@ -4,8 +4,7 @@ set -e
 
 echo ">>> 设置 Linux 时区..."
 cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-echo "TZ='Asia/Shanghai'; export TZ" >> /etc/profile
-. /etc/profile
+echo "export TZ='Asia/Shanghai'" >> /etc/profile
 date
 
 echo ">>> 将用户 kingboya 添加到 vboxsf 用户组..."
