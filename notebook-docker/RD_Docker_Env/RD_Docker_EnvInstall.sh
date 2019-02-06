@@ -35,7 +35,7 @@ echo ">>> 设置 Docker 镜像加速..."
 cat > /etc/docker/daemon.json << EOF
 {
   "registry-mirrors": [
-    "http://hub-mirror.c.163.com"
+    "https://registry.docker-cn.com"
   ]
 }
 EOF
